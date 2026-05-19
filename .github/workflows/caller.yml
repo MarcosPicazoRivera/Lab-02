@@ -1,0 +1,28 @@
+name: Lab 2 - Workflow Consumidor
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  llamar_al_reusable:
+    strategy:
+      matrix:
+        version: ['18.x', '20.x'] 
+    uses: ./.github/workflows/reusable-node.yml
+    with:
+      node_version: ${{ matrix.version }}
+
+  logica_adicional:
+    needs: llamar_al_reusable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consumir el output devuelto por el workflow reutilizable
+        run: |
+          echo "El workflow reutilizable para 18.x generó el artifact: ${{ needs.llamar_al_reusable.outputs.nombre_artifact }}"
+      
+      - name: Descargar todos los artifacts generados
+        uses: actions/download-artifact@v4.1.7
+        
+      - name: Verificar descargas
+        run: ls -laR
