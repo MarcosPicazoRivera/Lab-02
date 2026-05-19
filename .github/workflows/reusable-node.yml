@@ -1,0 +1,67 @@
+name: Pipeline Reutilizable Node
+
+# Parte 1: Sintaxis workflow_call para recibir parámetros y devolver outputs
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        required: true
+        type: string
+        description: 'Version de Node.js a utilizar'
+    outputs:
+      nombre_artifact:
+        description: 'El nombre del artifact generado'
+        value: ${{ jobs.build.outputs.art_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Mapeamos el output del paso 'set_output' al output del job
+    outputs:
+      art_name: ${{ steps.set_output.outputs.mi_artifact }}
+      
+    steps:
+      # Parte 5: Seguridad. Evitamos versiones flotantes usando tags completos (ej. @v4.1.1 en vez de @v4)
+      - name: Checkout del código
+        uses: actions/checkout@v4.1.1 
+
+      # Parte 1: Seleccionar versión Node con el input recibido
+      - name: Setup Node.js ${{ inputs.node_version }}
+        uses: actions/setup-node@v4.0.2
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      # Parte 2: Cache dependiente del SO y de las dependencias, evitando colisiones
+      - name: Cache dependencias NPM
+        uses: actions/cache@v4.0.0
+        id: npm-cache
+        with:
+          path: ~/.npm
+          # Clave única que evita colisiones combinando SO, versión Node y el hash de las dependencias
+          key: ${{ runner.os }}-node-${{ inputs.node_version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ inputs.node_version }}-
+
+      # Parte 1: Ejecutar instalación y tests. Si no tienes un proyecto real, creamos archivos falsos para que el lab funcione.
+      - name: Instalacion y Tests
+        run: |
+          mkdir -p dist logs
+          echo "Codigo compilado" > dist/main.js
+          echo "Todos los tests pasaron correctamente" > test-report.txt
+          echo "Logs de ejecucion" > logs/app.log
+
+      # Parte 3: Generar artifacts con nombre consistente y retención personalizada
+      - name: Subir Artifact
+        uses: actions/upload-artifact@v4.3.1
+        with:
+          name: node-app-release-${{ inputs.node_version }}
+          path: |
+            dist/
+            test-report.txt
+            logs/
+          retention-days: 5 
+
+      # Parte 1: Devolver información al caller
+      - name: Set Output
+        id: set_output
+        run: echo "mi_artifact=node-app-release-${{ inputs.node_version }}" >> $GITHUB_OUTPUT
